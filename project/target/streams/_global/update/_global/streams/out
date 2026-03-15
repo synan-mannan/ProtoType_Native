@@ -1,7 +1,3 @@
 [0m[[0m[0mdebug[0m] [0m[0mnot up to date. inChanged = true, force = false[0m
 [0m[[0m[0mdebug[0m] [0m[0mUpdating ProjectRef(uri("file:/C:/Users/syedm/Practice/open_source/Prototype_Native/native-poller/project/"), "native-poller-build")...[0m
-[0m[[0m[0minfo[0m] [0m[0mUpdating native-poller-build[0m
-[0m[[0m[0minfo[0m] [0m[0mResolved native-poller-build dependencies[0m
-[0m[[0m[0minfo[0m] [0m[0mFetching artifacts of native-poller-build[0m
-[0m[[0m[0minfo[0m] [0m[0mFetched artifacts of native-poller-build[0m
 [0m[[0m[0mdebug[0m] [0m[0mDone updating ProjectRef(uri("file:/C:/Users/syedm/Practice/open_source/Prototype_Native/native-poller/project/"), "native-poller-build")[0m

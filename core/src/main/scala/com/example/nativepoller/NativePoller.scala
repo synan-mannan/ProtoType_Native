@@ -7,9 +7,7 @@ import jnr.ffi.annotations.In
 import jnr.posix.POSIX
 import jnr.posix.POSIXFactory
 
-/**
-  * Core native poller using Linux epoll.
-  */
+
 trait NativePoller[F[_]] {
   def registerRead(fd: Int): F[Unit]
   def registerWrite(fd: Int): F[Unit]
@@ -34,9 +32,7 @@ object NativePoller {
     EpollPollerLinux.make[F].widen
 }
 
-/**
-  * Linux epoll implementation.
-  */
+
 private class EpollPollerLinux[F[_]: Sync](
     epfd: Int,
     posix: POSIX

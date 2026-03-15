@@ -1,15 +1,15 @@
-[0m[[0m[33mwarn[0m] [0m[0m[33m[33m-- [E175] Potential Issue Warning: C:\Users\syedm\Practice\open_source\Prototype_Native\native-poller\core\src\main\scala\com\example\nativepoller\EventLoop.scala:20:17 [0m[0m[0m
-[0m[[0m[33mwarn[0m] [0m[0m[33m20 |[0m    callbacks.put(fd, Option(callbacks.get(fd)).getOrElse(List.empty[[35mF[0m[[35mUnit[0m]]) :+ cb)[0m
+[0m[[0m[33mwarn[0m] [0m[0m[33m[33m-- [E175] Potential Issue Warning: C:\Users\syedm\Practice\open_source\Prototype_Native\native-poller\core\src\main\scala\com\example\nativepoller\EventLoop.scala:17:17 [0m[0m[0m
+[0m[[0m[33mwarn[0m] [0m[0m[33m17 |[0m    callbacks.put(fd, Option(callbacks.get(fd)).getOrElse(List.empty[[35mF[0m[[35mUnit[0m]]) :+ cb)[0m
 [0m[[0m[33mwarn[0m] [0m[0m[33m[33m   |[0m    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m[0m
 [0m[[0m[33mwarn[0m] [0m[0m[33m   |[0m    discarded non-Unit value of type List[F[Unit]][0m
 [0m[[0m[33mwarn[0m] [0m[0m[33m   |[0m[0m
 [0m[[0m[33mwarn[0m] [0m[0m[33m   |[0m    where:    F is a type in [33mclass[0m [35mEventLoop[0m with bounds <: [_] =>> Any[0m
-[0m[[0m[33mwarn[0m] [0m[0m[33m[33m-- [E175] Potential Issue Warning: C:\Users\syedm\Practice\open_source\Prototype_Native\native-poller\core\src\main\scala\com\example\nativepoller\PollingSystem.scala:29:6 [0m[0m[0m
-[0m[[0m[33mwarn[0m] [0m[0m[33m25 |[0m    reg.flatMap { _ =>[0m
-[0m[[0m[33mwarn[0m] [0m[0m[33m26 |[0m      Sync[[35mF[0m].delay([0m
-[0m[[0m[33mwarn[0m] [0m[0m[33m27 |[0m  loop.addCallback(fd, Sync[[35mF[0m].delay(cb(Right(()))))[0m
-[0m[[0m[33mwarn[0m] [0m[0m[33m28 |[0m)[0m
-[0m[[0m[33mwarn[0m] [0m[0m[33m29 |[0m    }.void[0m
+[0m[[0m[33mwarn[0m] [0m[0m[33m[33m-- [E175] Potential Issue Warning: C:\Users\syedm\Practice\open_source\Prototype_Native\native-poller\core\src\main\scala\com\example\nativepoller\PollingSystem.scala:26:6 [0m[0m[0m
+[0m[[0m[33mwarn[0m] [0m[0m[33m22 |[0m    reg.flatMap { _ =>[0m
+[0m[[0m[33mwarn[0m] [0m[0m[33m23 |[0m      Sync[[35mF[0m].delay([0m
+[0m[[0m[33mwarn[0m] [0m[0m[33m24 |[0m  loop.addCallback(fd, Sync[[35mF[0m].delay(cb(Right(()))))[0m
+[0m[[0m[33mwarn[0m] [0m[0m[33m25 |[0m)[0m
+[0m[[0m[33mwarn[0m] [0m[0m[33m26 |[0m    }.void[0m
 [0m[[0m[33mwarn[0m] [0m[0m[33m[33m   |[0m    ^[0m[0m
 [0m[[0m[33mwarn[0m] [0m[0m[33m   |[0mdiscarded non-Unit value of type (cats.Functor.Ops[F, Unit]{type TypeClassType = cats.Functor[F]}#void :[0m
 [0m[[0m[33mwarn[0m] [0m[0m[33m   |[0m  => F[Unit])[0m

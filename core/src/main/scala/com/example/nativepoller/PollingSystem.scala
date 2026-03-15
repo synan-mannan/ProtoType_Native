@@ -5,10 +5,7 @@ import cats.effect.*
 import cats.syntax.all.*
 import com.example.nativepoller.{NativePoller, EventLoop, EpollEvent}
 
-/**
-  * Cats Effect compatible polling system.
-  * Fibers suspend until FD ready, then resume.
-  */
+
 trait PollingSystem[F[_]] {
   def untilReadable(fd: Int): F[Unit]
   def untilWritable(fd: Int): F[Unit]
