@@ -1,9 +1,0 @@
-[0m[[0m[33mwarn[0m] [0m[0m[33m[33m-- Warning: C:\Users\syedm\Practice\open_source\Prototype_Native\native-poller\example\src\main\scala\com\example\nativepoller\example\EchoServer.scala:4:23 [0m[0m[0m
-[0m[[0m[33mwarn[0m] [0m[0m[33m4 |[0m[33mimport[0m cats.syntax.all.*[0m
-[0m[[0m[33mwarn[0m] [0m[0m[33m[33m  |[0m                       ^[0m[0m
-[0m[[0m[33mwarn[0m] [0m[0m[33m  |[0m                       unused import[0m
-[0m[[0m[33mwarn[0m] [0m[0m[33m[33m-- Warning: C:\Users\syedm\Practice\open_source\Prototype_Native\native-poller\example\src\main\scala\com\example\nativepoller\example\EchoServer.scala:6:48 [0m[0m[0m
-[0m[[0m[33mwarn[0m] [0m[0m[33m6 |[0m[33mimport[0m com.example.nativepoller.{PollingSystem, NativePoller}[0m
-[0m[[0m[33mwarn[0m] [0m[0m[33m[33m  |[0m                                                ^^^^^^^^^^^^[0m[0m
-[0m[[0m[33mwarn[0m] [0m[0m[33m  |[0m                                                unused import[0m
-[0m[[0m[33mwarn[0m] [0m[0mtwo warnings found[0m
