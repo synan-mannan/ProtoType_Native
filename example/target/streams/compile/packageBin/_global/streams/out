@@ -1,0 +1,17 @@
+[0m[[0m[0mdebug[0m] [0m[0mPackaging C:\Users\syedm\Practice\open_source\Prototype_Native\native-poller\example\target\scala-3.4.1\example_3-0.1.0-SNAPSHOT.jar ...[0m
+[0m[[0m[0mdebug[0m] [0m[0mInput file mappings:[0m
+[0m[[0m[0mdebug[0m] [0m[0m	com[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  C:\Users\syedm\Practice\open_source\Prototype_Native\native-poller\example\target\scala-3.4.1\classes\com[0m
+[0m[[0m[0mdebug[0m] [0m[0m	com\example[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  C:\Users\syedm\Practice\open_source\Prototype_Native\native-poller\example\target\scala-3.4.1\classes\com\example[0m
+[0m[[0m[0mdebug[0m] [0m[0m	com\example\nativepoller[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  C:\Users\syedm\Practice\open_source\Prototype_Native\native-poller\example\target\scala-3.4.1\classes\com\example\nativepoller[0m
+[0m[[0m[0mdebug[0m] [0m[0m	com\example\nativepoller\example[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  C:\Users\syedm\Practice\open_source\Prototype_Native\native-poller\example\target\scala-3.4.1\classes\com\example\nativepoller\example[0m
+[0m[[0m[0mdebug[0m] [0m[0m	com\example\nativepoller\example\EchoServer$.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  C:\Users\syedm\Practice\open_source\Prototype_Native\native-poller\example\target\scala-3.4.1\classes\com\example\nativepoller\example\EchoServer$.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	com\example\nativepoller\example\EchoServer.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  C:\Users\syedm\Practice\open_source\Prototype_Native\native-poller\example\target\scala-3.4.1\classes\com\example\nativepoller\example\EchoServer.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	com\example\nativepoller\example\EchoServer.tasty[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  C:\Users\syedm\Practice\open_source\Prototype_Native\native-poller\example\target\scala-3.4.1\classes\com\example\nativepoller\example\EchoServer.tasty[0m
+[0m[[0m[0mdebug[0m] [0m[0mDone packaging.[0m
