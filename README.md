@@ -121,7 +121,7 @@ Type:
 hello
 ```
 
-Expected response:
+Expected response (on your backend):
 
 ```
 hello
@@ -173,31 +173,17 @@ are handled.
 
 Writable readiness is not implemented.
 
----
-
 ### No backpressure handling
 
 The example server performs direct reads and writes without a structured streaming layer.
-
----
 
 ### Single event loop
 
 The prototype uses a single poller thread.
 
----
-
 ### No FS2 integration
 
 The current implementation works directly with raw sockets rather than FS2 streams.
-
----
-
-### Minimal error handling
-
-The example server is intentionally simple and lacks production-level safety.
-
----
 
 # Future Improvements
 
