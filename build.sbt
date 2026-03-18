@@ -1,6 +1,6 @@
 name := "native-poller"
 
-ThisBuild / version := "0.1.0-SNAPSHOT"
+ThisBuild / version := "0.1.0"
 ThisBuild / scalaVersion := "3.4.1"
 ThisBuild / organization := "com.example"
 
