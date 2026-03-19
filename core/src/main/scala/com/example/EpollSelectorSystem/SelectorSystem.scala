@@ -3,7 +3,9 @@ package unsafe
 
 import cats.effect._
 import cats.syntax.all._
-import com.example.nativepoller.{NativePoller, EpollEvent, EventLoop, PollingSystem}
+import com.example.nativepoller.{NativePoller, EpollEvent, EventLoop}
+
+import cats.effect.unsafe.PollingSystem
 
 // import cats.effect.unsafe.metrics.PollerMetrics
 
@@ -40,12 +42,27 @@ final class EpollSelectorSystem[F[_]: Async] private (
 
   def poll(p: Poller, nanos: Long): PollResult = {
     
-    PollResult.Complete
+    val events = p.pollEvents.wait(nanos)
+
+    if (events.nonEmpty) PollResult.Complete
+    else PollResult.Interrupted
   }
 
   def processReadyEvents(p: Poller): Boolean = {
-    
-    true 
+    val events = p.poller.drainEvents()
+
+  var rescheduled = false
+
+  events.foreach { ev =>
+    val callbacks = p.loop.getCallbacks(ev.fd)
+
+    callbacks.foreach { cb =>
+      cb(Right(ev.flags))
+      rescheduled = true
+    }
+  }
+
+  rescheduled
   }
 
   def needsPoll(p: Poller): Boolean = true
