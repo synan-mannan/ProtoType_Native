@@ -1,115 +1,157 @@
 package cats.effect
 package unsafe
 
-import cats.effect._
+import cats.effect.unsafe.metrics.PollerMetrics
 import cats.syntax.all._
-import com.example.nativepoller.{NativePoller, EpollEvent, EventLoop}
 
-import cats.effect.unsafe.PollingSystem
+import java.util.concurrent.ConcurrentHashMap
 
-// import cats.effect.unsafe.metrics.PollerMetrics
-
-// import java.nio.channels.{SelectableChannel, SelectionKey}
-// import java.nio.channels.spi.{AbstractSelector, SelectorProvider}
-// import java.util.Iterator
-
-// import SelectorSystem._
-
-
-trait Selector {
-
-  def select(fd: Int, eventFlag: Short): IO[Int]
-}
-
-
-final class EpollSelectorSystem[F[_]: Async] private (
-    val poller: NativePoller[F],
-    val loop: EventLoop[F]
-) extends PollingSystem {
+final class EpollSystem private () extends PollingSystem {
 
   type Api = Selector
 
-  def close(): Unit = () 
+  def close(): Unit = ()
 
   def makeApi(ctx: PollingContext[Poller]): Selector =
-    new SelectorImpl(ctx, poller, loop)
+    new SelectorImpl(ctx)
 
-  def makePoller(): Poller =
-    new Poller(poller, loop)
+  def makePoller(): Poller = {
+    val epollFd = NativeEpoll.create()
+    val eventFd = NativeEpoll.createEventFd()
 
-  def closePoller(p: Poller): Unit =
-    p.close()
+    // register wakeup fd
+    NativeEpoll.add(eventFd, NativeEpoll.EPOLLIN, epollFd)
 
-  def poll(p: Poller, nanos: Long): PollResult = {
-    
-    val events = p.pollEvents.wait(nanos)
+    new Poller(epollFd, eventFd)
+  }
 
-    if (events.nonEmpty) PollResult.Complete
+  def closePoller(poller: Poller): Unit = {
+    NativeEpoll.close(poller.epollFd)
+    NativeEpoll.close(poller.eventFd)
+  }
+
+  def poll(poller: Poller, nanos: Long): PollResult = {
+    val timeout =
+      if (nanos < 0) -1
+      else (nanos / 1000000).toInt
+
+    val n = NativeEpoll.wait(poller.epollFd, timeout)
+
+    if (n > 0) PollResult.Complete
     else PollResult.Interrupted
   }
 
-  def processReadyEvents(p: Poller): Boolean = {
-    val events = p.poller.drainEvents()
+  def processReadyEvents(poller: Poller): Boolean = {
+    val events = NativeEpoll.drain(poller.epollFd)
 
-  var rescheduled = false
+    var rescheduled = false
 
-  events.foreach { ev =>
-    val callbacks = p.loop.getCallbacks(ev.fd)
+    var i = 0
+    while (i < events.length) {
+      val ev = events(i)
+      val fd = ev.fd
+      val ready = ev.events
 
-    callbacks.foreach { cb =>
-      cb(Right(ev.flags))
-      rescheduled = true
-    }
-  }
+      // ignore wakeup fd
+      if (fd == poller.eventFd) {
+        NativeEpoll.clearEventFd(fd)
+      } else {
+        val callbacks = poller.callbacks.get(fd)
 
-  rescheduled
-  }
+        if (callbacks != null) {
+          val iter = callbacks.iterator()
 
-  def needsPoll(p: Poller): Boolean = true
+          while (iter.hasNext) {
+            val node = iter.next()
 
-  def interrupt(targetThread: Thread, targetPoller: Poller): Unit =
-    loop.wakeup()
+            if ((node.interest & ready) != 0) {
+              node.remove()
 
-  def metrics(p: Poller): PollerMetrics = p
-
-
-  final class SelectorImpl private[SelectorSystem] (
-      ctx: PollingContext[Poller],
-      poller: NativePoller[F],
-      loop: EventLoop[F]
-  ) extends Selector {
-
-
-    def select(fd: Int, eventFlag: Short): IO[Int] = IO.async { selectCb =>
-      IO.async_[Option[IO[Unit]]] { cb =>
-        ctx.accessPoller { _ =>
-          try {
-  
-            val reg: F[Unit] = eventFlag match {
-              case EpollEvent.EPOLLIN  => poller.registerRead(fd)
-              case EpollEvent.EPOLLOUT => poller.registerWrite(fd)
-              case _                   => Async[F].unit
+              val cb = node.callback
+              if (cb != null) {
+                cb(Right(ready))
+                rescheduled = true
+                poller.countSucceededOperation(ready)
+              } else {
+                poller.countCanceledOperation(node.interest)
+              }
             }
-
-           
-            val cancel: IO[Unit] =
-              reg.flatMap(_ => loop.addCallback(fd, Async[F].delay(selectCb(Right(1))))).void
-
-            cb(Right(Some(cancel)))
-          } catch {
-            case ex if UnsafeNonFatal(ex) =>
-              cb(Left(ex))
           }
         }
       }
+
+      i += 1
     }
+
+    rescheduled
   }
 
-  
-  final class Poller private[SelectorSystem] (
-      val poller: NativePoller[F],
-      val loop: EventLoop[F]
+  def needsPoll(poller: Poller): Boolean =
+    !poller.callbacks.isEmpty
+
+  def interrupt(targetThread: Thread, targetPoller: Poller): Unit =
+    NativeEpoll.wakeup(targetPoller.eventFd)
+
+  def metrics(poller: Poller): PollerMetrics = poller
+
+
+  final class SelectorImpl(
+      ctx: PollingContext[Poller]
+  ) extends Selector {
+
+    def select(fd: Int, ops: Int): IO[Int] =
+      IO.async { selectCb =>
+        IO.async_[Option[IO[Unit]]] { cb =>
+          ctx.accessPoller { poller =>
+            try {
+              poller.countSubmittedOperation(ops)
+
+              val node =
+                poller.register(fd, ops, selectCb)
+
+              val cancel = IO {
+                if (ctx.ownPoller(poller)) {
+                  poller.countCanceledOperation(ops)
+                  node.remove()
+                } else {
+                  node.clear()
+                }
+              }
+
+              cb(Right(Some(cancel)))
+            } catch {
+              case ex if UnsafeNonFatal(ex) =>
+                poller.countErroredOperation(ops)
+                cb(Left(ex))
+            }
+          }
+        }
+      }
+  }
+
+
+  final class Poller(
+      val epollFd: Int,
+      val eventFd: Int
   ) extends PollerMetrics {
+
+    val callbacks =
+      new ConcurrentHashMap[Int, Callbacks]()
+
+    def register(
+        fd: Int,
+        ops: Int,
+        cb: Either[Throwable, Int] => Unit
+    ): Callbacks#Node = {
+
+      val cbs = callbacks.computeIfAbsent(fd, _ => new Callbacks)
+
+      NativeEpoll.ctlAddOrMod(epollFd, fd, ops)
+
+      cbs.append(ops, cb)
+    }
+
+
 
     private[this] var outstandingOperations: Int = 0
     private[this] var submittedOperations: Long = 0
@@ -137,19 +179,76 @@ final class EpollSelectorSystem[F[_]: Async] private (
       canceledOperations += 1
     }
 
-    def close(): Unit = poller.close().unsafeRunSync()
+    def operationsOutstandingCount(): Int = outstandingOperations
+    def totalOperationsSubmittedCount(): Long = submittedOperations
+    def totalOperationsSucceededCount(): Long = succeededOperations
+    def totalOperationsErroredCount(): Long = erroredOperations
+    def totalOperationsCanceledCount(): Long = canceledOperations
 
-    override def toString: String = "EpollSelector"
+    override def toString: String = "Epoll"
   }
 }
 
-object EpollSelectorSystem {
 
+object EpollSystem {
 
-  def make[F[_]: Async]: Resource[F, EpollSelectorSystem[F]] =
-    for {
-      poller <- Resource.eval(NativePoller.makeLinux[F])
-      loop <- EventLoop.make[F]
-      _ <- loop.start()
-    } yield new EpollSelectorSystem[F](poller, loop)
+  def apply(): EpollSystem =
+    new EpollSystem()
+
+  final class Callbacks {
+
+    private var head: Node = null
+    private var last: Node = null
+
+    def append(
+        interest: Int,
+        callback: Either[Throwable, Int] => Unit
+    ): Node = {
+      val node = new Node(interest, callback)
+
+      if (last != null) {
+        last.next = node
+        node.prev = last
+      } else {
+        head = node
+      }
+
+      last = node
+      node
+    }
+
+    def iterator(): java.util.Iterator[Node] =
+      new java.util.Iterator[Node] {
+        private var cur = head
+
+        def hasNext: Boolean = cur != null
+
+        def next(): Node = {
+          val n = cur
+          cur = cur.next
+          n
+        }
+      }
+
+    final class Node(
+        var interest: Int,
+        var callback: Either[Throwable, Int] => Unit
+    ) {
+      var prev: Node = null
+      var next: Node = null
+
+      def remove(): Unit = {
+        if (prev != null) prev.next = next
+        else head = next
+
+        if (next != null) next.prev = prev
+        else last = prev
+      }
+
+      def clear(): Unit = {
+        interest = -1
+        callback = null
+      }
+    }
+  }
 }
