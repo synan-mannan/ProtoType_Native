@@ -12,9 +12,8 @@ The goal is to demonstrate a **low-latency, high-throughput polling Backend** th
 native-poller/
 │
 ├── core/
-│   ├── PollingSystem.scala
-│   ├── NativePoller.scala
-│   └── EventLoop.scala
+│   ├── NativeEpoll.scala
+│   ├── EpollSystem.scala
 │
 ├── example/
 │   └── EchoServer.scala
