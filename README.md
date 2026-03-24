@@ -82,7 +82,7 @@ to suspend a fiber until a socket becomes ready.
 
 # Proposed Architecture
 
-![Architecture Diagram](WhatsApp Image 2026-03-15 at 16.14.56.jpeg)
+![Architecture](image.png)
 
 Flow of an event:
 
