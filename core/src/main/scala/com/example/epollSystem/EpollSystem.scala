@@ -26,7 +26,6 @@ final class EpollSystem private () extends PollingSystem {
     val epollFd = NativeEpoll.create()
     val eventFd = NativeEpoll.createEventFd()
 
-    // register wakeup fd
     NativeEpoll.add(eventFd, NativeEpoll.EPOLLIN, epollFd)
 
     new Poller(epollFd, eventFd)
@@ -59,7 +58,6 @@ final class EpollSystem private () extends PollingSystem {
       val fd = ev.fd
       val ready = ev.events
 
-      // ignore wakeup fd
       if (fd == poller.eventFd) {
         NativeEpoll.clearEventFd(fd)
       } else {
@@ -101,7 +99,6 @@ final class EpollSystem private () extends PollingSystem {
 
   def metrics(poller: Poller): PollerMetrics = poller
 
-
   final class SelectorImpl(
       ctx: PollingContext[Poller]
   ) extends Selector {
@@ -136,7 +133,6 @@ final class EpollSystem private () extends PollingSystem {
       }
   }
 
-
   final class Poller(
       val epollFd: Int,
       val eventFd: Int
@@ -157,8 +153,6 @@ final class EpollSystem private () extends PollingSystem {
 
       cbs.append(ops, cb)
     }
-
-
 
     private[this] var outstandingOperations: Int = 0
     private[this] var submittedOperations: Long = 0
@@ -195,7 +189,6 @@ final class EpollSystem private () extends PollingSystem {
     override def toString: String = "Epoll"
   }
 }
-
 
 object EpollSystem {
 
