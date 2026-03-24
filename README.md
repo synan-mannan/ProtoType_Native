@@ -30,9 +30,8 @@ The goal is to demonstrate a **low-latency, high-throughput polling Backend** th
 native-poller/
 │
 ├── core/
-│   └── src/main/scala/com/example/epollSystem/
-│       ├── EpollSystem.scala
-│       └── NativeEpoll.scala
+│   ├── NativeEpoll.scala
+│   ├── EpollSystem.scala
 │
 ├── example/
 │   └── src/main/scala/com/example/nativepoller/example/
