@@ -101,7 +101,6 @@ object NativeEpoll {
     libc.epoll_ctl(epollFd, EPOLL_CTL_DEL, fd, null)
   }
 
-  // ✅ FIXED: proper memory allocation
   def wait(epollFd: Int, timeout: Int): Int = {
     val eventsMem =
       jnr.ffi.Memory.allocate(runtime, EVENT_SIZE * MAX_EVENTS)
@@ -109,7 +108,6 @@ object NativeEpoll {
     libc.epoll_wait(epollFd, eventsMem, MAX_EVENTS, timeout)
   }
 
-  // ✅ FIXED: correct drain implementation
   def drain(epollFd: Int): Array[EpollEvent] = {
     val eventsMem =
       jnr.ffi.Memory.allocate(runtime, EVENT_SIZE * MAX_EVENTS)

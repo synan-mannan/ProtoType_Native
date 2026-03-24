@@ -1,10 +1,28 @@
 # Native Poller Prototype (Scala + Cats Effect)
 
+[![Scala](https://img.shields.io/badge/Scala-3.4.1-brightgreen.svg)](https://www.scala-lang.org/)
+[![SBT](https://img.shields.io/badge/sbt-1.0-blue.svg)](https://www.scala-sbt.org/)
+[![Linux](https://img.shields.io/badge/Linux-epoll-orange.svg)](https://www.kernel.org/doc/html/latest/core-api/genalloc.html)
+[![Cats Effect](https://img.shields.io/badge/Cats%20Effect-3-purple.svg)](https://typelevel.org/cats-effect/)
+
 A prototype implementation of a **native event-driven I/O polling system** for the JVM using **Linux `epoll`**, built with **Scala and Cats Effect**.
 
-This project atempts to upgrade the traditional **JDK NIO selector-based IO Backend** with a **direct native polling Backend**, with refernce to **https://github.com/armanbilge/fs2-io_uring**
+This project attempts to upgrade the traditional **JDK NIO selector-based IO Backend** with a **direct native polling Backend**, with reference to **https://github.com/armanbilge/fs2-io_uring**.
 
 The goal is to demonstrate a **low-latency, high-throughput polling Backend** that could eventually integrate with **FS2**.
+
+## Table of Contents
+
+- [Project Structure](#project-structure)
+- [core](#core)
+- [example](#example)
+- [Proposed Architecture](#proposed-architecture)
+- [Running the Example](#running-the-example)
+- [Current Implementation](#current-implementation)
+- [Current Limitations](#current-limitations)
+- [Future Improvements](#future-improvements)
+- [Comparison](#comparison)
+- [Why This Matters](#why-this-matters)
 
 # Project Structure
 
@@ -12,14 +30,17 @@ The goal is to demonstrate a **low-latency, high-throughput polling Backend** th
 native-poller/
 │
 ├── core/
-│   ├── PollingSystem.scala
-│   ├── NativePoller.scala
-│   └── EventLoop.scala
+│   └── src/main/scala/com/example/epollSystem/
+│       ├── EpollSystem.scala
+│       └── NativeEpoll.scala
 │
 ├── example/
-│   └── EchoServer.scala
+│   └── src/main/scala/com/example/nativepoller/example/
+│       └── EchoServer.scala
 │
-└── build.sbt
+├── build.sbt
+├── project/
+└── README.md
 ```
 
 ## core
@@ -35,9 +56,9 @@ Responsibilities:
 Key components:
 
 ```
-PollingSystem
+EpollSystem
      ↓
-NativePoller
+NativeEpoll
      ↓
 jnr-ffi bindings
      ↓
@@ -62,7 +83,7 @@ to suspend a fiber until a socket becomes ready.
 
 # Proposed Architecture
 
-![alt text](<WhatsApp Image 2026-03-15 at 16.14.56.jpeg>)
+![Architecture Diagram](WhatsApp Image 2026-03-15 at 16.14.56.jpeg)
 
 Flow of an event:
 
@@ -84,11 +105,35 @@ data echoed back
 
 # Running the Example
 
+## Quick Start
+
+```bash
+# Clone & cd
+git clone <repo-url> native-poller
+cd native-poller
+
+# Install deps (Ubuntu/Debian)
+sudo apt update
+sudo apt install sbt netcat-openbsd
+
+# Build & run example
+sbt compile
+sbt "example/runMain com.example.nativepoller.example.EchoServer"
+```
+
+Server will listen on `127.0.0.1:8080`.
+
+Test with:
+
+```bash
+nc 127.0.0.1 8080
+```
+
 ## Requirements
 
-- Linux (or WSL)
-- Java 21
-- sbt
+- Linux (epoll required) or WSL2
+- Java 21+
+- sbt 1.x
 
 Install dependencies:
 
@@ -240,6 +285,14 @@ Potential benefits:
 - lower latency
 - higher throughput
 
-# !Note
+## Contributing
 
-    This is just a prototype or it's a work under progress and it might have some flaws or unexpected behaviour
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) (create if needed).
+
+## License
+
+Prototype - MIT License (or specify).
+
+# Note
+
+> This is just a prototype under active development. It may have flaws or unexpected behavior. Use at your own risk.
