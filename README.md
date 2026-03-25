@@ -284,14 +284,6 @@ Potential benefits:
 - lower latency
 - higher throughput
 
-## Contributing
-
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) (create if needed).
-
-## License
-
-Prototype - MIT License (or specify).
-
 # Note
 
 > This is just a prototype under active development. It may have flaws or unexpected behavior. Use at your own risk.
