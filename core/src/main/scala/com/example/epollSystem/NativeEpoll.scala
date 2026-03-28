@@ -8,17 +8,18 @@ import jnr.ffi.Struct
 
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import cats.instances.byte
+import javax.print.DocFlavor.BYTE_ARRAY
 
 class EpollEventStruct(runtime: Runtime) extends Struct(runtime) {
   val events = new Unsigned32()
   val data = new Unsigned64()
-  val fd = new Unsigned32()
 }
 
 case class EpollEvent(fd: Int, events: Int)
 
 trait LibC {
-    def epoll_create1(flags: Int): Int
+  def epoll_create1(flags: Int): Int
   def epoll_ctl(epfd: Int, op: Int, fd: Int, event: Pointer): Int
   def epoll_wait(epfd: Int, events: Pointer, maxevents: Int, timeout: Int): Int
 
@@ -30,7 +31,6 @@ trait LibC {
   def close(fd: Int): Int
 }
 
-
 object NativeEpoll {
 
   private val libc =
@@ -38,7 +38,7 @@ object NativeEpoll {
 
   private val runtime = Runtime.getRuntime(libc)
 
-  val EPOLLIN  = 0x001
+  val EPOLLIN = 0x001
   val EPOLLOUT = 0x004
   val EPOLLERR = 0x008
   val EPOLLHUP = 0x010
@@ -52,7 +52,7 @@ object NativeEpoll {
   private val MAX_EVENTS = 1024
 
   // size of one struct
- private val EVENT_SIZE = Struct.size(new EpollEventStruct(runtime))
+  private val EVENT_SIZE = Struct.size(new EpollEventStruct(runtime))
 
   def create(): Int = {
     val fd = libc.epoll_create1(0)
@@ -69,7 +69,7 @@ object NativeEpoll {
   def add(fd: Int, events: Int, epollFd: Int): Unit = {
     val evStruct = new EpollEventStruct(runtime)
     evStruct.events.set(events)
-    evStruct.fd.set(fd)
+    evStruct.data.set(fd.toLong)
 
     val res = libc.epoll_ctl(
       epollFd,
@@ -84,7 +84,7 @@ object NativeEpoll {
   def ctlAddOrMod(epollFd: Int, fd: Int, events: Int): Unit = {
     val evStruct = new EpollEventStruct(runtime)
     evStruct.events.set(events)
-    evStruct.fd.set(fd)
+    evStruct.data.set(fd.toLong)
 
     val ptr = Struct.getMemory(evStruct)
 
@@ -98,7 +98,9 @@ object NativeEpoll {
   }
 
   def ctlDel(epollFd: Int, fd: Int): Unit = {
-    libc.epoll_ctl(epollFd, EPOLL_CTL_DEL, fd, null)
+    val res = libc.epoll_ctl(epollFd, EPOLL_CTL_DEL, fd, null)
+    if (res != 0)
+      throw new RuntimeException(s"epoll_ctl DEL failed for fd=$fd")
   }
 
   def wait(epollFd: Int, timeout: Int): Int = {
@@ -124,7 +126,7 @@ object NativeEpoll {
       evStruct.useMemory(eventsMem.slice(i * EVENT_SIZE, EVENT_SIZE))
 
       result(i) = EpollEvent(
-        evStruct.fd.get().toInt,
+        evStruct.data.get().toInt,
         evStruct.events.get().toInt
       )
 
@@ -139,16 +141,21 @@ object NativeEpoll {
     bb.order(ByteOrder.nativeOrder())
     bb.putLong(1L)
 
-    libc.write(eventFd, bb.array(), 8)
+    val res = libc.write(eventFd, bb.array(), 8)
+    if (res < 0)
+      throw new RuntimeException("eventfd write failed")
   }
 
   def clearEventFd(eventFd: Int): Unit = {
-    val buf = new Array
-    libc.read(eventFd, buf, 8)
+    val buf = new Array[Byte](8)
+    val res = libc.read(eventFd, buf, 8)
+    if (res < 0)
+      throw new RuntimeException("eventfd read failed")
   }
 
   def close(fd: Int): Unit = {
-    libc.close(fd)
-    ()
+    val res = libc.close(fd)
+    if (res != 0)
+      throw new RuntimeException(s"close failed for fd=$fd")
   }
 }

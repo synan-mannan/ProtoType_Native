@@ -7,7 +7,7 @@ ThisBuild / organization := "com.example"
 lazy val core = project
   .settings(
     libraryDependencies ++= Seq(
-      "org.typelevel" %% "cats-effect" % "3.5.7",
+      "org.typelevel" %% "cats-effect" % "3.7.0",
       "com.github.jnr" % "jnr-ffi" % "2.2.15",
       "com.github.jnr" % "jnr-posix" % "3.1.19"
     )

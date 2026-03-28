@@ -2,14 +2,14 @@ package com.example.epollSystem
 // import cats.effect.unsafe.metrics.PollerMetrics
 import cats.syntax.all._
 
-import cats.effect.Poll
-import cats.effect.IO
+import cats.effect.unsafe.UnsafeNonFatal
 import cats.effect.unsafe._
 import cats.effect.unsafe.PollingContext
 import cats.effect.unsafe.PollResult
 import cats.effect.unsafe.metrics.PollerMetrics
-
-import cats.effect.unsafe
+import cats.effect.unsafe.PollingSystem
+import com.example.Selector
+import cats.effect.IO
 
 import java.util.concurrent.ConcurrentHashMap
 
@@ -124,7 +124,7 @@ final class EpollSystem private () extends PollingSystem {
 
               cb(Right(Some(cancel)))
             } catch {
-              case ex if UnsafeNonFatal(ex) =>
+              case ex: Throwable =>
                 poller.countErroredOperation(ops)
                 cb(Left(ex))
             }
@@ -139,15 +139,15 @@ final class EpollSystem private () extends PollingSystem {
   ) extends PollerMetrics {
 
     val callbacks =
-      new ConcurrentHashMap[Int, Callbacks]()
+      new ConcurrentHashMap[Int, EpollSystem.Callbacks]()
 
     def register(
         fd: Int,
         ops: Int,
         cb: Either[Throwable, Int] => Unit
-    ): Callbacks#Node = {
+    ): EpollSystem.Callbacks#Node = {
 
-      val cbs = callbacks.computeIfAbsent(fd, _ => new Callbacks)
+      val cbs = callbacks.computeIfAbsent(fd, _ => new EpollSystem.Callbacks)
 
       NativeEpoll.ctlAddOrMod(epollFd, fd, ops)
 
@@ -179,6 +179,36 @@ final class EpollSystem private () extends PollingSystem {
       outstandingOperations -= 1
       canceledOperations += 1
     }
+
+    // Outstanding counts
+    def acceptOperationsOutstandingCount(): Int = outstandingOperations
+    def connectOperationsOutstandingCount(): Int = outstandingOperations
+    def readOperationsOutstandingCount(): Int = outstandingOperations
+    def writeOperationsOutstandingCount(): Int = outstandingOperations
+
+// Submitted
+    def totalAcceptOperationsSubmittedCount(): Long = submittedOperations
+    def totalConnectOperationsSubmittedCount(): Long = submittedOperations
+    def totalReadOperationsSubmittedCount(): Long = submittedOperations
+    def totalWriteOperationsSubmittedCount(): Long = submittedOperations
+
+// Succeeded
+    def totalAcceptOperationsSucceededCount(): Long = succeededOperations
+    def totalConnectOperationsSucceededCount(): Long = succeededOperations
+    def totalReadOperationsSucceededCount(): Long = succeededOperations
+    def totalWriteOperationsSucceededCount(): Long = succeededOperations
+
+// Errored
+    def totalAcceptOperationsErroredCount(): Long = erroredOperations
+    def totalConnectOperationsErroredCount(): Long = erroredOperations
+    def totalReadOperationsErroredCount(): Long = erroredOperations
+    def totalWriteOperationsErroredCount(): Long = erroredOperations
+
+// Canceled
+    def totalAcceptOperationsCanceledCount(): Long = canceledOperations
+    def totalConnectOperationsCanceledCount(): Long = canceledOperations
+    def totalReadOperationsCanceledCount(): Long = canceledOperations
+    def totalWriteOperationsCanceledCount(): Long = canceledOperations
 
     def operationsOutstandingCount(): Int = outstandingOperations
     def totalOperationsSubmittedCount(): Long = submittedOperations
