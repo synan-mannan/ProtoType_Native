@@ -113,4 +113,4 @@ nc 127.0.0.1 8080
 
 ## Note
 
-Prototype under development. Uses jnr-ffi for native calls.
+This is Prototype under development. Uses jnr-ffi for native calls.
