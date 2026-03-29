@@ -3,32 +3,32 @@ package com.example.nativepoller.example
 import cats.effect.*
 import cats.syntax.all.*
 
-import com.example.nativepoller.{PollingSystem, NativePoller}
-import com.example.nativepoller.LibC
+import com.example.epollSystem.{EpollSystem, NativeEpoll}
+import com.example.Selector
 
 import jnr.ffi.{LibraryLoader, Pointer, Memory, Runtime}
 
 object EchoServer extends IOApp.Simple {
 
+  val EPOLLIN = NativeEpoll.EPOLLIN
+  val EPOLLOUT = NativeEpoll.EPOLLOUT
 
-  val AF_INET     = 2
+  val AF_INET = 2
   val SOCK_STREAM = 1
 
-  val SOL_SOCKET  = 1
+  val SOL_SOCKET = 1
   val SO_REUSEADDR = 2
 
   val F_GETFL = 3
   val F_SETFL = 4
   val O_NONBLOCK = 0x800
 
-  val PORT     = 8080
-  val BACKLOG  = 128
+  val PORT = 8080
+  val BACKLOG = 128
   val BUF_SIZE = 1024
   val ADDR_LEN = 16
 
- 
-
-  trait TcpLibC extends LibC {
+  trait TcpLibC {
 
     def socket(domain: Int, `type`: Int, protocol: Int): Int
 
@@ -44,7 +44,13 @@ object EchoServer extends IOApp.Simple {
 
     def close(fd: Int): Int
 
-    def setsockopt(fd: Int, level: Int, optname: Int, optval: Pointer, optlen: Int): Int
+    def setsockopt(
+        fd: Int,
+        level: Int,
+        optname: Int,
+        optval: Pointer,
+        optlen: Int
+    ): Int
 
     def fcntl(fd: Int, cmd: Int, arg: Int): Int
   }
@@ -57,9 +63,7 @@ object EchoServer extends IOApp.Simple {
         .load("c")
   }
 
-  val ffiRuntime: Runtime = LibC.runtime
-
-
+  val ffiRuntime: Runtime = Runtime.getRuntime(TcpLibC.libc)
 
   def htons(port: Int): Short =
     ((port >> 8) | ((port & 0xff) << 8)).toShort
@@ -70,8 +74,6 @@ object EchoServer extends IOApp.Simple {
       TcpLibC.libc.fcntl(fd, F_SETFL, flags | O_NONBLOCK)
     }.void
 
-
-
   def setupServer(): IO[Int] =
     IO.blocking {
 
@@ -80,7 +82,6 @@ object EchoServer extends IOApp.Simple {
 
       if (serverFd < 0)
         throw new RuntimeException("socket failed")
-
 
       val opt = Memory.allocate(ffiRuntime, 4)
       opt.putInt(0, 1)
@@ -93,14 +94,12 @@ object EchoServer extends IOApp.Simple {
         4
       )
 
-
       val addr = Memory.allocate(ffiRuntime, ADDR_LEN)
 
       addr.putShort(0, AF_INET.toShort)
       addr.putShort(2, htons(PORT))
 
-  
-      addr.putInt(4, 0x0100007F)
+      addr.putInt(4, 0x0100007f)
 
       if (TcpLibC.libc.bind(serverFd, addr, ADDR_LEN) < 0)
         throw new RuntimeException("bind failed")
@@ -111,20 +110,18 @@ object EchoServer extends IOApp.Simple {
       serverFd
     }
 
-
   def acceptLoop(
-      polling: PollingSystem[IO],
+      selector: Selector,
       serverFd: Int
   ): IO[Unit] = {
 
     val addr = Memory.allocate(ffiRuntime, ADDR_LEN)
-    val len  = Memory.allocate(ffiRuntime, 4)
+    val len = Memory.allocate(ffiRuntime, 4)
 
     len.putInt(0, ADDR_LEN)
 
     for {
-
-      _ <- polling.untilReadable(serverFd)
+      _ <- selector.select(serverFd, EPOLLIN).void
 
       clientFd <- IO.blocking {
         TcpLibC.libc.accept(serverFd, addr, len)
@@ -134,12 +131,11 @@ object EchoServer extends IOApp.Simple {
         if (clientFd >= 0)
           for {
             _ <- setNonBlocking(clientFd)
-            _ <- handleClient(polling, clientFd).start
+            _ <- handleClient(selector, clientFd).start
           } yield ()
         else IO.unit
 
-      _ <- acceptLoop(polling, serverFd)
-
+      _ <- acceptLoop(selector, serverFd)
     } yield ()
   }
 
@@ -150,18 +146,15 @@ object EchoServer extends IOApp.Simple {
   ): IO[Unit] =
     if (remaining <= 0) IO.unit
     else
-      IO.blocking(TcpLibC.libc.write(fd, buf, remaining)).flatMap {
-        written =>
-          if (written <= 0)
-            IO.raiseError(new RuntimeException("write failed"))
-          else
-            writeAll(fd, buf.slice(written), remaining - written)
+      IO.blocking(TcpLibC.libc.write(fd, buf, remaining)).flatMap { written =>
+        if (written <= 0)
+          IO.raiseError(new RuntimeException("write failed"))
+        else
+          writeAll(fd, buf.slice(written), remaining - written)
       }
 
-
-
   def handleClient(
-      polling: PollingSystem[IO],
+      selector: Selector,
       clientFd: Int
   ): IO[Unit] = {
 
@@ -169,41 +162,36 @@ object EchoServer extends IOApp.Simple {
 
     def loop: IO[Unit] =
       for {
-
-        _ <- polling.untilReadable(clientFd)
+        _ <- selector.select(clientFd, EPOLLIN)
 
         n <- IO.blocking {
           TcpLibC.libc.read(clientFd, buf, BUF_SIZE)
         }
 
         _ <-
-          if (n > 0)
-            writeAll(clientFd, buf, n) >> loop
-          else
+          if (n > 0) {
+            writeAll(clientFd, buf, n) >>
+              selector.select(clientFd, EPOLLOUT).void >>
+              loop
+          } else
             IO.blocking(TcpLibC.libc.close(clientFd)).void
-
       } yield ()
 
     loop
   }
 
-
   val run: IO[Unit] =
-    PollingSystem.make[IO].use { polling =>
+    Selector.get.flatMap { selector =>
       for {
-
         serverFd <- setupServer()
-
         _ <- IO.println(
-          "=== Native TCP Echo Server running on 127.0.0.1:8080 ==="
+          "=== Native Epoll TCP Echo Server running on 127.0.0.1:8080 ==="
         )
-
         _ <- IO.println(
           "Test with: nc 127.0.0.1 8080"
         )
-
-        _ <- acceptLoop(polling, serverFd)
-
+        fiber <- acceptLoop(selector, serverFd).start
+        _ <- fiber.join
       } yield ()
     }
 }

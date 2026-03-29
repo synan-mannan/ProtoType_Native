@@ -1,297 +1,116 @@
-# Native Poller Prototype (Scala + Cats Effect)
+# Native Epoll Polling System for Cats Effect
 
-[![Scala](https://img.shields.io/badge/Scala-3.4.1-brightgreen.svg)](https://www.scala-lang.org/)
-[![SBT](https://img.shields.io/badge/sbt-1.0-blue.svg)](https://www.scala-sbt.org/)
-[![Linux](https://img.shields.io/badge/Linux-epoll-orange.svg)](https://www.kernel.org/doc/html/latest/core-api/genalloc.html)
+[![Scala](https://img.shields.io/badge/Scala-3-brightgreen.svg)](https://www.scala-lang.org/)
 [![Cats Effect](https://img.shields.io/badge/Cats%20Effect-3-purple.svg)](https://typelevel.org/cats-effect/)
+[![Linux epoll](https://img.shields.io/badge/Linux-epoll-orange.svg)](https://man7.org/linux/man-pages/man7/epoll.7.html)
 
-A prototype implementation of a **native event-driven I/O polling system** for the JVM using **Linux `epoll`**, built with **Scala and Cats Effect**.
+Prototype of a **native Linux epoll-based PollingSystem** for Cats Effect IO runtime, using **jnr-ffi** for direct system calls.
 
-This project attempts to upgrade the traditional **JDK NIO selector-based IO Backend** with a **direct native polling Backend**, with reference to **https://github.com/armanbilge/fs2-io_uring**.
+Implements efficient fiber suspension/resumption on fd readiness via `Selector.select(fd, ops): IO[Int]`.
 
-The goal is to demonstrate a **low-latency, high-throughput polling Backend** that could eventually integrate with **FS2**.
-
-## Table of Contents
-
-- [Project Structure](#project-structure)
-- [core](#core)
-- [example](#example)
-- [Proposed Architecture](#proposed-architecture)
-- [Running the Example](#running-the-example)
-- [Current Implementation](#current-implementation)
-- [Current Limitations](#current-limitations)
-- [Future Improvements](#future-improvements)
-- [Comparison](#comparison)
-- [Why This Matters](#why-this-matters)
-
-# Project Structure
+## Project Structure
 
 ```
 native-poller/
-│
-├── core/
-│   ├── NativeEpoll.scala
-│   ├── EpollSystem.scala
-│
-├── example/
-│   └── src/main/scala/com/example/nativepoller/example/
-│       └── EchoServer.scala
-│
+├── README.md
 ├── build.sbt
-├── project/
-└── README.md
+├── .gitignore
+├── image.png
+├── core/
+│   └── src/main/scala/com/example/
+│       ├── Selector.scala              # Selector trait
+│       ├── test.scala                  # Epoll tests
+│       └── epollSystem/
+│           ├── EpollSystem.scala       # PollingSystem impl
+│           └── NativeEpoll.scala       # jnr-ffi epoll bindings
+└── example/
+    └── src/main/scala/com/example/nativepoller/example/
+        └── EchoServer.scala            # TCP echo server demo
+├── project/                           # sbt config
+└── target/                            # build artifacts
 ```
 
-## core
+## Architecture
 
-Contains the **native polling runtime**.
+![architecture](image-1.png)
 
-Responsibilities:
+## Core Components
 
-- epoll integration
-- file descriptor registration
-- event loop
+### `Selector` Trait (core/src/main/scala/com/example/Selector.scala)
 
-Key components:
-
-```
-EpollSystem
-     ↓
-NativeEpoll
-     ↓
-jnr-ffi bindings
-     ↓
-Linux epoll
+```scala
+trait Selector {
+  def select(fd: Int, ops: Int): IO[Int]  // Suspend until fd ready (EPOLLIN/EPOLLOUT)
+}
 ```
 
----
+- `Selector.get`: IO[Selector] from IO runtime.
+- Used by apps to await fd readiness.
 
-## example
+### `NativeEpoll` (core/src/main/scala/com/example/epollSystem/NativeEpoll.scala)
 
-Contains a **demo TCP echo server** built using the polling runtime.
+**jnr-ffi bindings** to Linux libc:
 
-It demonstrates how an application can use:
+- `create()` / `close(fd)`
+- `ctlAddOrMod(epollFd, fd, events)` / `ctlDel`
+- `wait(epollFd, timeout)` / `drain(epollFd): Array[EpollEvent]`
+- `createEventFd()` / `wakeup(eventFd)` / `clearEventFd`
+- Events: `EPOLLIN=1`, `EPOLLOUT=4`, etc.
+- `EpollEvent(fd: Int, events: Int)`
 
-```
-polling.untilReadable(fd)
-```
+### `EpollSystem` (core/src/main/scala/com/example/epollSystem/EpollSystem.scala)
 
-to suspend a fiber until a socket becomes ready.
+**Cats Effect `PollingSystem`** implementation:
 
----
+- `makePoller()`: Creates epollFd + eventFd, registers eventFd.
+- `poll(poller, nanos)`: `epoll_wait` with timeout.
+- `processReadyEvents(poller)`: Drains events, invokes callbacks, handles interrupt.
+- `SelectorImpl`: `select(fd, ops)` registers callback on poller.callbacks (ConcurrentHashMap), `ctlAddOrMod`.
+- `Poller extends PollerMetrics`: Full metrics (submitted/succeeded/errored/canceled ops).
+- Linked-list `Callbacks#Node` for multi-callback per fd.
+- Interrupt: `wakeup(eventFd)`.
 
-# Proposed Architecture
+### Tests (`test.scala`)
 
-![Architecture](image.png)
+Basic epoll + eventfd create/register/wakeup/drain/clear test.
 
-Flow of an event:
+## Running the Echo Server Example
 
-```
-client sends data
-      ↓
-socket becomes readable
-      ↓
-epoll_wait wakes event loop
-      ↓
-fiber waiting on fd is resumed
-      ↓
-read() is executed
-      ↓
-data echoed back
-```
+EchoServer demonstrates `Selector` usage: non-blocking TCP server on 127.0.0.1:8080.
 
----
+**Uses native socket/bind/listen/accept/read/write** via jnr-ffi TcpLibC.
 
-# Running the Example
-
-## Quick Start
+Fibers suspend via `selector.select(clientFd, EPOLLIN/OUT)` for echo loop.
 
 ```bash
-# Clone & cd
-git clone <repo-url> native-poller
-cd native-poller
-
-# Install deps (Ubuntu/Debian)
-sudo apt update
-sudo apt install sbt netcat-openbsd
-
-# Build & run example
+# Build
 sbt compile
+
+# Run server
 sbt "example/runMain com.example.nativepoller.example.EchoServer"
 ```
 
-Server will listen on `127.0.0.1:8080`.
+**Expected output:**
 
-Test with:
+```
+=== Native Epoll TCP Echo Server running on 127.0.0.1:8080 ===
+Test with: nc 127.0.0.1 8080
+```
+
+**Test:**
 
 ```bash
 nc 127.0.0.1 8080
+# type "hello" -> echoes "hello"
 ```
 
 ## Requirements
 
-- Linux (epoll required) or WSL2
-- Java 21+
-- sbt 1.x
+- **Linux** (epoll required)
+- **Java 21+**
+- **sbt**
+- `netcat` (nc) for testing
 
-Install dependencies:
+## Note
 
-```
-sudo apt update
-sudo apt install sbt netcat-openbsd
-```
-
-Run the server:
-
-```
-sbt example/run
-```
-
-Output:
-
-```
-Native TCP Echo Server running on 127.0.0.1:8080
-```
-
-Test the server:
-
-```
-nc 127.0.0.1 8080
-```
-
-Type:
-
-```
-hello
-```
-
-Expected response (on your backend):
-
-```
-hello
-```
-
----
-
-# Current Implementation
-
-This prototype currently supports:
-
-### Native socket operations
-
-- socket
-- bind
-- listen
-- accept
-- read
-
-### Polling system
-
-- epoll event loop
-- fd readiness detection
-- fiber suspension until fd becomes readable
-
-### Cats Effect integration
-
-Fibers are suspended until an event occurs.
-
-```
-polling.untilReadable(fd)
-```
-
----
-
-# Current Limitations
-
-The current prototype is intentionally minimal and has several limitations.
-
-### Limited event support
-
-Currently only:
-
-```
-READABLE events
-```
-
-are handled.
-
-Writable readiness is not implemented.
-
-### No backpressure handling
-
-The example server performs direct reads and writes without a structured streaming layer.
-
-### Single event loop
-
-The prototype uses a single poller thread.
-
-### No FS2 integration
-
-The current implementation works directly with raw sockets rather than FS2 streams.
-
-# Future Improvements
-
-The prototype serves as a **foundation for a full native I/O backend**.
-
-Future work includes:
-
-## Writable readiness support
-
-Add:
-
-```
-untilWritable(fd)
-```
-
-to allow non-blocking writes.
-
----
-
-## FS2 integration
-
-Expose the polling runtime to **FS2** so sockets can be represented as streams.
-
-Example future API:
-
-```
-Socket.reads
-Socket.writes
-```
-
-## A FallBack Mechanism
-
-If native polling is unavailable (for example on non-Linux systems such as windows or when epoll cannot be initialized), the system can fall back to the standard JVM based on Java NIO selectors. This ensures reliability and portability while still allowing Backend Running even if it fails.
-
----
-
-# Comparison
-
-| Feature         | Current Prototype | Future Implementation     |
-| --------------- | ----------------- | ------------------------- |
-| Polling         | epoll             | epoll + kqueue(for macos) |
-| Thread model    | single event loop | multi-core event loops    |
-| IO API          | raw sockets       | FS2 streaming             |
-| Write readiness | not implemented   | full support              |
-
----
-
-# Why This Matters
-
-This prototype explores the possibility of building a **native I/O backend for FS2**.
-
-Potential benefits:
-
-- lower latency
-- higher throughput
-
-## Contributing
-
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) (create if needed).
-
-## License
-
-Prototype - MIT License (or specify).
-
-# Note
-
-> This is just a prototype under active development. It may have flaws or unexpected behavior. Use at your own risk.
+Prototype under development. Uses jnr-ffi for native calls.
